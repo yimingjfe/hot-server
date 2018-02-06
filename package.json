@@ -1,0 +1,21 @@
+{
+  "name": "hot-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "hot": "./src/hot.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "opn": "^5.2.0",
+    "posthtml": "^0.11.2",
+    "serve-static": "^1.13.1",
+    "yargs": "^11.0.0"
+  }
+}
