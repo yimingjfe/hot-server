@@ -6,6 +6,7 @@ const opn = require('opn')
 const fs = require('./fs')
 const getPort = require('./getPort')
 const posthtml = require('posthtml')
+const WebSocket = require('ws')
 
 
 const ISHTMLASSET = /\.html$/
@@ -74,13 +75,32 @@ async function startServer(dir){
       console.error('error', error)
     })
 
+    const wss = new WebSocket.Server({ port: 7782 });
+    wss.on('connection', function connection(ws) {
+      console.log('握手完成')
+      ws.on('message', function incoming(message) {
+        console.log('received: %s', message);
+      });
+    
+      // ws.send('something');
+    });
+
+    wss.on('error', (error) => {
+      console.log('wserror', error)
+    })
+
+    process.on('uncaughtException', function(err) {
+      console.log(err.stack);
+      console.log('NOT exit...');
+    })
+
 
     process.on('SIGINT', async() => {
       await fs.writeFile(file, content);
       process.exit(0);
     })
   } catch (error) {
-    console.error(error)
+    console.error('trerf', error)
   }
 }
 
@@ -100,5 +120,6 @@ async function transformHtml(content){
   const newContent = await posthtml(addClientScript).process(content);
   return newContent.html;
 }
+
 
 start()
