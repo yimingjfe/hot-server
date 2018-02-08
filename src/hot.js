@@ -15,7 +15,7 @@ const ISHTMLASSET = /\.html$/
 const options = require('yargs')
   .option('d', {
     alias: 'dir',
-    describe: '指定提供资源的目录',
+    describe: '提供资源的路径或目录',
     default: './'
   })
   .options('p', {
@@ -37,12 +37,10 @@ const options = require('yargs')
 
 function start(){
   let assetPath = options.dir || './';
-  console.log('assetPath', assetPath);
   if(!ISHTMLASSET.test(assetPath)){
     assetPath = path.resolve(assetPath, 'index.html')
   }
-  const dir = path.dirname(assetPath)
-  startServer(dir)
+  startServer(assetPath)
 }
 
 function send404(req, res){
@@ -53,12 +51,13 @@ function send404(req, res){
 }
 
 // 将增加和删除script的操作抽离出来
-async function startServer(dir){
+async function startServer(file){
   try {
-    const file = path.resolve(dir, './index.html');
+    const dir = path.dirname(file);
     const content = await fs.readFile(file);
-    const newHtml = await transformHtml(content)
-    await fs.writeFile(file, newHtml)
+    const newHtml = await transformHtml(content);
+    const basename = path.basename(file);
+    await fs.writeFile(file, newHtml);
     const serve = serveStatic(dir)
     const server = http.createServer((req, res) => {
       serve(req, res, send404(req, res));
@@ -67,7 +66,7 @@ async function startServer(dir){
   
     server.listen(port, () => {
       if(options.o){
-        opn(`http://localhost:${port}`, {app: options.browser || ''})
+        opn(`http://localhost:${port}/${basename}`, {app: options.browser || ''})
       }
     })
 
@@ -98,6 +97,10 @@ async function startServer(dir){
     process.on('SIGINT', async() => {
       await fs.writeFile(file, content);
       process.exit(0);
+    })
+
+    fs.watch(dir, { recursive: true }, (eventType, filename) => {
+      console.log('filename', filename, eventType)
     })
   } catch (error) {
     console.error('trerf', error)

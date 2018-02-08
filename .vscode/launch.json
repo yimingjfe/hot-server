@@ -10,7 +10,9 @@
       "name": "Launch Program",
       "program": "${workspaceFolder}/src/hot.js",
       "args": [
-        "index.html"
+        "-d",
+        "/Users/ming/Desktop/jsAround/demo/index7.html",
+        "-o"
       ]
     }
   ]
