@@ -9,10 +9,11 @@ const posthtml = require('posthtml')
 const WebSocket = require('ws')
 
 
-const ISHTMLASSET = /\.html$/
+const ISHTMLASSET = /\.html$/;
+let options = {};
 
 // 增加指定端口功能
-const options = require('yargs')
+const argv = require('yargs')
   .option('d', {
     alias: 'dir',
     describe: '提供资源的路径或目录',
@@ -34,8 +35,18 @@ const options = require('yargs')
   })
   .argv;
 
+function initOptions(){
+  options = {
+    dir: argv.dir,
+    port: argv.port,
+    browser: argv.browser,
+    open: argv.open
+  }
+}
 
+// 设置options对应的参数，为html添加js，启动服务器，启动ws的服务器，启动文件监听
 function start(){
+  initOptions();
   let assetPath = options.dir || './';
   if(!ISHTMLASSET.test(assetPath)){
     assetPath = path.resolve(assetPath, 'index.html')
