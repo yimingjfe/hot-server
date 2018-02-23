@@ -1,17 +1,14 @@
 #!/usr/bin/env node
-const path = require('path')
-const http = require('http')
-const Stream = require('stream')
-const opn = require('opn')
-const posthtml = require('posthtml')
-const parseurl = require('parseurl')
-const send = require('send')
-const WebSocket = require('ws')
-const serveStatic = require('serve-static')
-const es = require('event-stream')
-const url = require('url')
-const fs = require('./fs')
-const getPort = require('./getPort')
+
+const path = require('path');
+const http = require('http');
+const opn = require('opn');
+const posthtml = require('posthtml');
+const parseurl = require('parseurl');
+const send = require('send');
+const WebSocket = require('ws');
+const fs = require('./fs');
+const getPort = require('./getPort');
 
 // 路径都是硬编码的问题如何解决？全部定义为常量？
 
@@ -47,10 +44,10 @@ function initOptions(){
     browser: argv.browser,
     open: argv.open,
     assetPath: ''
-  }
+  };
   
   if(!ISHTMLASSET.test(options.dir)){ // dir是真目录
-    options.assetPath = path.resolve(options.assetPath, 'index.html')
+    options.assetPath = path.resolve(options.assetPath, 'index.html');
   } else {
     options.assetPath = options.dir;
     options.dir = path.dirname(options.assetPath);
@@ -68,20 +65,20 @@ function send404(req, res){
   return () => {
     res.writeHead(404);
     res.end();
-  }
+  };
 }
 
 function serve(req, res){
   const pathname = parseurl(req).pathname;
   if(pathname === '/hot/client.js'){
-    const sendScriptStream = send(req, '/src/client.js', {root: process.cwd()})
+    const sendScriptStream = send(req, '/src/client.js', {root: process.cwd()});
     sendScriptStream
       .on('error', send404(req, res))
-      .pipe(res)
+      .pipe(res);
   } else {
     const sendStream = send(req, pathname, {root: options.dir});
-    let injected = false
-    const originalWrite = res.write
+    let injected = false;
+    const originalWrite = res.write;
     res.write = (chunk, encoding, callback) => {
       if(res._headers['content-type'] === 'text/html; charset=UTF-8'){
         if(!injected){
@@ -92,10 +89,10 @@ function serve(req, res){
         }
       }
       originalWrite.call(res, chunk, encoding, callback);
-    }
+    };
     sendStream
       .on('error', send404(req, res))
-      .pipe(res)
+      .pipe(res);
   }
 }
 
@@ -112,26 +109,26 @@ async function startServer(){
     const server = http.createServer((req, res) => {
       // serve(req, res, send404(req, res));
       serve(req, res);
-    })
+    });
 
-    const port = await getPort(options.port)
+    const port = await getPort(options.port);
   
     server.listen(port, () => {
       if(options.open){
         opn(`http://localhost:${port}/${basename}`, {app: options.browser || ''});
         console.log('浏览器已经打开');
       }
-    })
+    });
 
-    server.on('error', () => {
-      console.error('error', error)
-    })
+    server.on('error', (error) => {
+      console.error('error', error);
+    });
 
     process.on('SIGINT', async() => {
       process.exit(0);
-    })
+    });
   } catch (error) {
-    console.error('err', error)
+    console.error('err', error);
   }
 }
 
@@ -145,32 +142,32 @@ function startWSServer(){
     });
 
     ws.on('error', (err) => {
-      console.log('err', err)
-    })
+      console.log('err', err);
+    });
     
     const watcher = fs.watch(options.dir, { recursive: true }, function onWatchDir(eventType, filename){
       if(safe){
         setTimeout(() => {
-          console.log('reload')
+          console.log('reload');
           ws.send('reload');
           safe = true;
-        }, 500)
+        }, 500);
         safe = false;
       }
-      // console.log('filename', filename, eventType)
-    })
+      console.log('filename', filename, eventType);
+    });
 
     ws.on('close', () => {
       console.log('server socket is closed');
       watcher.close();
       wss.close();
       startWSServer();
-    })
+    });
   });
 
   wss.on('error', (error) => {
-    console.log('wserror', error)
-  })
+    console.log('wserror', error);
+  });
 }
 
 
@@ -179,10 +176,10 @@ function addClientScript(tree){
     const script = {
       tag: 'script',
       attrs: { src: './src/client.js' }
-    }
-    node.content.push('\n', script, '\n')
-    return node
-  })
+    };
+    node.content.push('\n', script, '\n');
+    return node;
+  });
 }
 
 function addContentToHead(tree){
@@ -190,10 +187,10 @@ function addContentToHead(tree){
     const script = {
       tag: 'script',
       attrs: { src: './hot/client.js' }
-    }
-    node.content.unshift('\n', script, '\n')
-    return node
-  })
+    };
+    node.content.unshift('\n', script, '\n');
+    return node;
+  });
 }
 
 async function transformHtml(content, plugins){
@@ -207,4 +204,4 @@ function transformHtmlSync(content, plugins){
 }
 
 
-start()
+start();
