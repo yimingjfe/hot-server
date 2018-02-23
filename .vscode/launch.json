@@ -11,8 +11,11 @@
       "program": "${workspaceFolder}/src/hot.js",
       "args": [
         "-d",
-        "/Users/ming/Desktop/jsAround/demo/index7.html",
-        // "-o"
+        "E:\\frontend\\hot-server\\bb.html",
+        // "/Users/ming/Desktop/jsAround/demo/index7.html",
+        "-o",
+        // "-b",
+        // "chrome"
       ]
     }
   ]

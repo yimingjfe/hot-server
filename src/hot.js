@@ -14,9 +14,6 @@ const fs = require('./fs')
 const getPort = require('./getPort')
 
 // 路径都是硬编码的问题如何解决？全部定义为常量？
-// 中间件返回一个promise，会如何处理？（看koa关于中间件的代码）
-// 404情况的处理
-
 
 const ISHTMLASSET = /\.html$/;
 let options = {};
@@ -51,8 +48,9 @@ function initOptions(){
     open: argv.open,
     assetPath: ''
   }
+  
   if(!ISHTMLASSET.test(options.dir)){ // dir是真目录
-    options.assetPath = path.resolve(assetPath, 'index.html')
+    options.assetPath = path.resolve(options.assetPath, 'index.html')
   } else {
     options.assetPath = options.dir;
     options.dir = path.dirname(options.assetPath);
@@ -63,6 +61,7 @@ function initOptions(){
 function start(){
   initOptions();
   startServer();
+  startWSServer();
 }
 
 function send404(req, res){
@@ -74,17 +73,11 @@ function send404(req, res){
 
 function serve(req, res){
   const pathname = parseurl(req).pathname;
-  // const extname = path.extname(pathname);
-  // if(extname === 'html'){
-  //   const content = await fs.readFile(pathname)
-
-  // } else {
-
-  // }
-
   if(pathname === '/hot/client.js'){
     const sendScriptStream = send(req, '/src/client.js', {root: process.cwd()})
-    sendScriptStream.pipe(res)
+    sendScriptStream
+      .on('error', send404(req, res))
+      .pipe(res)
   } else {
     const sendStream = send(req, pathname, {root: options.dir});
     let injected = false
@@ -100,14 +93,16 @@ function serve(req, res){
       }
       originalWrite.call(res, chunk, encoding, callback);
     }
-    sendStream.pipe(res)
+    sendStream
+      .on('error', send404(req, res))
+      .pipe(res)
   }
 }
 
 // 将增加和删除script的操作抽离出来
 async function startServer(){
   try {
-    const content = await fs.readFile(options.assetPath);
+    // const content = await fs.readFile(options.assetPath);
     const basename = path.basename(options.assetPath);
     // const clientScript = await fs.readFile(path.resolve("./src/client.js"));
     // const clientDir = path.resolve(options.dir, "./hot");
@@ -132,13 +127,11 @@ async function startServer(){
       console.error('error', error)
     })
 
-    startWSServer();
-
     process.on('SIGINT', async() => {
       process.exit(0);
     })
   } catch (error) {
-    console.error('trerf', error)
+    console.error('err', error)
   }
 }
 
