@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-
 const path = require('path');
 const http = require('http');
 const opn = require('opn');
@@ -71,7 +70,7 @@ function send404(req, res){
 function serve(req, res){
   const pathname = parseurl(req).pathname;
   if(pathname === '/hot/client.js'){
-    const sendScriptStream = send(req, '/src/client.js', {root: process.cwd()});
+    const sendScriptStream = send(req, '/client.js', {root: __dirname});
     sendScriptStream
       .on('error', send404(req, res))
       .pipe(res);
@@ -99,15 +98,8 @@ function serve(req, res){
 // 将增加和删除script的操作抽离出来
 async function startServer(){
   try {
-    // const content = await fs.readFile(options.assetPath);
     const basename = path.basename(options.assetPath);
-    // const clientScript = await fs.readFile(path.resolve("./src/client.js"));
-    // const clientDir = path.resolve(options.dir, "./hot");
-    // mfs.mkdirpSync(clientDir);
-    // mfs.writeFileSync(path.resolve(clientDir, "./client.js"), clientScript);
-    // const serve = serveStatic(dir)
     const server = http.createServer((req, res) => {
-      // serve(req, res, send404(req, res));
       serve(req, res);
     });
 
@@ -116,7 +108,7 @@ async function startServer(){
     server.listen(port, () => {
       if(options.open){
         opn(`http://localhost:${port}/${basename}`, {app: options.browser || ''});
-        console.log('浏览器已经打开');
+        console.log('浏览器已经打开', `http://localhost:${port}/${basename}`);
       }
     });
 
