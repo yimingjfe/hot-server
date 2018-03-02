@@ -8,10 +8,16 @@ const send = require('send');
 const WebSocket = require('ws');
 const fs = require('./fs');
 const getPort = require('./getPort');
+const { throttle } = require('./util')
 
 // 路径都是硬编码的问题如何解决？全部定义为常量？
+// hmr服务器端口冲突问题，解决？
+// 错误处理，整理代码
+// 创建的stream是不是应该一直起作用，而不是每次handle都重新创建？
+// 去掉-d 参数
 
 const ISHTMLASSET = /\.html$/;
+const htmlExtensions = ['html']
 let options = {};
 
 const argv = require('yargs')
@@ -36,7 +42,14 @@ const argv = require('yargs')
   })
   .argv;
 
+function initOptions2(){
+  const dir = process.cwd();
+  const assetPath = argv['_'];
+  const isFile = false;
+}
+
 function initOptions(){
+  console.log(argv)
   options = {
     dir: argv.dir,
     port: argv.port,
@@ -44,7 +57,29 @@ function initOptions(){
     open: argv.open,
     assetPath: ''
   };
-  
+  // 判断是不是目录，拿到资源路径和目录的路径
+  // const assetPath = argv['_']
+  // const isFile = false;
+  // try {
+  //   isFile = fs.statSync(assetPath).isFile();
+  // } catch (e) {
+  //   console.error(e.toString().red)
+  // }
+
+  // const isFile = false;
+  // if(isHtml){
+    // try {
+    //   isFile = fs.statSync(options.assetPath).isFile();
+    // } catch (e) {
+    //   console.error(e.toString().red)
+    // }
+  //   if(isFile){
+
+  //   }
+    
+  // } else {
+
+  // }
   if(!ISHTMLASSET.test(options.dir)){ // dir是真目录
     options.assetPath = path.resolve(options.assetPath, 'index.html');
   } else {
@@ -53,6 +88,7 @@ function initOptions(){
   }
 }
 
+const injectedTag = `<script src="./hot/client.js"></script>`
 // 设置options对应的参数，为html添加js，启动服务器，启动ws的服务器，启动文件监听
 function start(){
   initOptions();
@@ -82,9 +118,10 @@ function serve(req, res){
       if(res._headers['content-type'] === 'text/html; charset=UTF-8'){
         if(!injected){
           const content = chunk.toString();
-          chunk = transformHtmlSync(content, [addContentToHead]);
+          // chunk = transformHtmlSync(content, [addContentToHead]);
+          chunk = content.replace('</body>', `${injectedTag}$&`)
           injected = true;
-          res.setHeader('content-length', chunk.length);
+          res.setHeader('content-length', res._headers['content-length'] + chunk.length - content.length);
         }
       }
       originalWrite.call(res, chunk, encoding, callback);
@@ -108,8 +145,8 @@ async function startServer(){
     server.listen(port, () => {
       if(options.open){
         opn(`http://localhost:${port}/${basename}`, {app: options.browser || ''});
-        console.log('浏览器已经打开', `http://localhost:${port}/${basename}`);
       }
+      console.log('服务器已经开启\n', `http://localhost:${port}/${basename}`);
     });
 
     server.on('error', (error) => {
@@ -120,7 +157,7 @@ async function startServer(){
       process.exit(0);
     });
   } catch (error) {
-    console.error('err', error);
+    console.error('startServer', error);
   }
 }
 
@@ -128,29 +165,32 @@ function startWSServer(){
   const wss = new WebSocket.Server({ port: 7782 });
   wss.on('connection', function connection(ws) {
     let safe = true;
-    console.log('connection', ws.readyState);
     ws.on('message', function incoming(message) {
       console.log('received: %s', message);
     });
 
     ws.on('error', (err) => {
-      console.log('err', err);
+      console.log('wserror', err);
     });
+
+    const sendReload = throttle(() => {
+      console.log('reload');
+      ws.send('reload');
+    }, 500)
     
     const watcher = fs.watch(options.dir, { recursive: true }, function onWatchDir(eventType, filename){
-      if(safe){
-        setTimeout(() => {
-          console.log('reload');
-          ws.send('reload');
-          safe = true;
-        }, 500);
-        safe = false;
-      }
-      console.log('filename', filename, eventType);
+      // if(safe){
+      //   setTimeout(() => {
+      //     console.log('reload');
+      //     ws.send('reload');
+      //     safe = true;
+      //   }, 500);
+      //   safe = false;
+      // }
+      sendReload();
     });
 
     ws.on('close', () => {
-      console.log('server socket is closed');
       watcher.close();
       wss.close();
       startWSServer();

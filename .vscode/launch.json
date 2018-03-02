@@ -11,9 +11,9 @@
       "program": "${workspaceFolder}/src/hot.js",
       "args": [
         "-d",
-        "/Users/ming/Desktop/reactAround/react-tepl2/build",
-        // "/Users/ming/Desktop/jsAround/demo/index7.html",
-        "-o",
+        // "/Users/ming/Desktop/reactAround/react-tepl2/build",
+        "/Users/ming/Desktop/jsAround/demo/index7.html",
+        // "-o",
         // "-b",
         // "chrome"
       ]
