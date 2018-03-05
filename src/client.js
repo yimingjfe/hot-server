@@ -1,3 +1,4 @@
+/* eslint-disable */
 if(WebSocket) {
   ;(function(){
     var socket = new WebSocket('ws://localhost:7782');

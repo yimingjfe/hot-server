@@ -7,3 +7,4 @@ exports.writeFile = promiseify(fs.writeFile);
 exports.createReadStream = fs.createReadStream;
 exports.createWriteStream = fs.createWriteStream;
 exports.watch = fs.watch;
+exports.lstatSync = fs.lstatSync;

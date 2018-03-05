@@ -8,16 +8,20 @@ const send = require('send');
 const WebSocket = require('ws');
 const fs = require('./fs');
 const getPort = require('./getPort');
-const { throttle } = require('./util')
+const { throttle } = require('./util');
 
 // 路径都是硬编码的问题如何解决？全部定义为常量？
 // hmr服务器端口冲突问题，解决？
 // 错误处理，整理代码
 // 创建的stream是不是应该一直起作用，而不是每次handle都重新创建？
-// 去掉-d 参数
+// 命令与startServer没有分离
+
+// 命令与startServer分离，这样options就能从某个配置文件中获取
+// 获取最终的options,这样可以做单元测试
 
 const ISHTMLASSET = /\.html$/;
-const htmlExtensions = ['html']
+const htmlExtensions = ['.html'];
+const injectedTag = '<script src="./hot/client.js"></script>';
 let options = {};
 
 const argv = require('yargs')
@@ -42,53 +46,41 @@ const argv = require('yargs')
   })
   .argv;
 
-function initOptions2(){
-  const dir = process.cwd();
-  const assetPath = argv['_'];
-  const isFile = false;
+// 指定相对html(非)
+// 指定绝对html（非）
+// 指定相对或绝对目录
+
+// 如果用中间件的话，这个就可以作为中间件的一环，便于测试
+function getMainAssetPath(dir, assetPath){
+  let abAssetPath = path.resolve(dir, assetPath);
+  let isFile = false;
+  try{
+    isFile = fs.lstatSync(abAssetPath).isFile();
+  } catch(error){
+    console.error(error);
+  }
+  if(!isFile){
+    abAssetPath = path.resolve(abAssetPath, 'index.html');
+  }
+  if(!htmlExtensions.includes(path.extname(abAssetPath))){
+    throw new Error('Main asset must be a html');
+  }
+  return abAssetPath;
 }
 
 function initOptions(){
-  console.log(argv)
+  const dir = process.cwd();
+  const assetPath = argv['dir'];
+  const abAssetPath = getMainAssetPath(dir, assetPath);
   options = {
-    dir: argv.dir,
+    dir: path.dirname(abAssetPath),
     port: argv.port,
     browser: argv.browser,
     open: argv.open,
-    assetPath: ''
+    assetPath: abAssetPath
   };
-  // 判断是不是目录，拿到资源路径和目录的路径
-  // const assetPath = argv['_']
-  // const isFile = false;
-  // try {
-  //   isFile = fs.statSync(assetPath).isFile();
-  // } catch (e) {
-  //   console.error(e.toString().red)
-  // }
-
-  // const isFile = false;
-  // if(isHtml){
-    // try {
-    //   isFile = fs.statSync(options.assetPath).isFile();
-    // } catch (e) {
-    //   console.error(e.toString().red)
-    // }
-  //   if(isFile){
-
-  //   }
-    
-  // } else {
-
-  // }
-  if(!ISHTMLASSET.test(options.dir)){ // dir是真目录
-    options.assetPath = path.resolve(options.assetPath, 'index.html');
-  } else {
-    options.assetPath = options.dir;
-    options.dir = path.dirname(options.assetPath);
-  }
 }
 
-const injectedTag = `<script src="./hot/client.js"></script>`
 // 设置options对应的参数，为html添加js，启动服务器，启动ws的服务器，启动文件监听
 function start(){
   initOptions();
@@ -119,7 +111,7 @@ function serve(req, res){
         if(!injected){
           const content = chunk.toString();
           // chunk = transformHtmlSync(content, [addContentToHead]);
-          chunk = content.replace('</body>', `${injectedTag}$&`)
+          chunk = content.replace('</body>', `${injectedTag}$&`);
           injected = true;
           res.setHeader('content-length', res._headers['content-length'] + chunk.length - content.length);
         }
@@ -176,7 +168,7 @@ function startWSServer(){
     const sendReload = throttle(() => {
       console.log('reload');
       ws.send('reload');
-    }, 500)
+    }, 500);
     
     const watcher = fs.watch(options.dir, { recursive: true }, function onWatchDir(eventType, filename){
       // if(safe){
