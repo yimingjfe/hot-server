@@ -12,12 +12,13 @@ const { throttle } = require('./util');
 
 
 // 路径都是硬编码的问题如何解决？全部定义为常量？
+// hmr服务器端口冲突问题，解决？
 // 错误处理，整理代码
+// 创建的stream是不是应该一直起作用，而不是每次handle都重新创建？
 // 命令与startServer没有分离
 
 // 命令与startServer分离，这样options就能从某个配置文件中获取
 // 获取最终的options,这样可以做单元测试
-// 正在做chrome中显示list directory
 
 const ISHTMLASSET = /\.html$/;
 const htmlExtensions = ['.html'];
@@ -53,18 +54,18 @@ const argv = require('yargs')
 // 如果用中间件的话，这个就可以作为中间件的一环，便于测试
 function getMainAssetPath(dir, assetPath){
   let abAssetPath = path.resolve(dir, assetPath);
-  // let isFile = false;
-  // try{
-  //   isFile = fs.lstatSync(abAssetPath).isFile();
-  // } catch(error){
-  //   console.error(error);
-  // }
-  // if(!isFile){
-  //   abAssetPath = path.resolve(abAssetPath, 'index.html');
-  // }
-  // if(!htmlExtensions.includes(path.extname(abAssetPath))){
-  //   throw new Error('Main asset must be a html');
-  // }
+  let isFile = false;
+  try{
+    isFile = fs.lstatSync(abAssetPath).isFile();
+  } catch(error){
+    console.error(error);
+  }
+  if(!isFile){
+    abAssetPath = path.resolve(abAssetPath, 'index.html');
+  }
+  if(!htmlExtensions.includes(path.extname(abAssetPath))){
+    throw new Error('Main asset must be a html');
+  }
   return abAssetPath;
 }
 
@@ -82,10 +83,10 @@ function initOptions(){
 }
 
 // 设置options对应的参数，为html添加js，启动服务器，启动ws的服务器，启动文件监听
-async function start(){
+function start(){
   initOptions();
-  const server = await startServer();
-  startWSServer(server);
+  startServer();
+  startWSServer();
 }
 
 function send404(req, res){
@@ -95,31 +96,13 @@ function send404(req, res){
   };
 }
 
-async function directory (res, path) {
-  var stream = this;
-
-  // redirect to trailing slash for consistent url
-  if (!stream.hasTrailingSlash()) {
-    return stream.redirect(path);
-  }
-
-  try {
-    const list = await fs.readdir(path);
-    res.setHeader('Content-Type', 'text/plain; charset=UTF-8');
-    res.end(list.join('\n') + '\n');
-  } catch (error) {
-    return stream.error(error);
-  }
-
-}
-
 function serve(req, res){
   const pathname = parseurl(req).pathname;
   let sendStream = null;
   if(pathname === '/hot/client.js'){
     sendStream = send(req, '/client.js', {root: __dirname});
   } else {
-    sendStream = send(req, pathname, {root: options.dir});
+    sendStream= send(req, pathname, {root: options.dir});
     let injected = false;
     const originalWrite = res.write;
     res.write = (chunk, encoding, callback) => {
@@ -135,11 +118,12 @@ function serve(req, res){
       originalWrite.call(res, chunk, encoding, callback);
     };
   }
+
   sendStream
     .on('error', send404(req, res))
-    // .once('directory', directory)
     .pipe(res);
 }
+
 // 将增加和删除script的操作抽离出来
 async function startServer(){
   try {
@@ -164,38 +148,36 @@ async function startServer(){
     process.on('SIGINT', async() => {
       process.exit(0);
     });
-
-    return server;
   } catch (error) {
     console.error('startServer', error);
   }
 }
 
-function startWSServer(server){
-  const wss = new WebSocket.Server({ server });
+function startWSServer(){
+  const wss = new WebSocket.Server({ port: 7782 });
   wss.on('connection', function connection(ws) {
+    let safe = true;
     ws.on('message', function incoming(message) {
       console.log('received: %s', message);
     });
 
-    ws.on('error', (error) => {
-      if(error.errno !== 'ECONNRESET'){
-        console.log('wserror', error);
-      }
+    ws.on('error', (err) => {
+      console.log('wserror', err);
     });
 
     const sendReload = throttle(() => {
-      wss.clients.forEach( ws => {
-        ws.send('reload');
-      });
+      console.log('reload');
+      ws.send('reload');
     }, 500);
     
     const watcher = fs.watch(options.dir, { recursive: true }, function onWatchDir(eventType, filename){
       sendReload();
     });
 
-    ws.on('close', (code, reason) => {
-      wss.clients.delete(ws);
+    ws.on('close', () => {
+      watcher.close();
+      wss.close();
+      startWSServer();
     });
   });
 
@@ -205,37 +187,3 @@ function startWSServer(server){
 }
 
 
-function addClientScript(tree){
-  tree.match({ tag: 'body' }, (node) => {
-    const script = {
-      tag: 'script',
-      attrs: { src: './src/client.js' }
-    };
-    node.content.push('\n', script, '\n');
-    return node;
-  });
-}
-
-function addContentToHead(tree){
-  tree.match({ tag: 'head' }, (node) => {
-    const script = {
-      tag: 'script',
-      attrs: { src: './hot/client.js' }
-    };
-    node.content.unshift('\n', script, '\n');
-    return node;
-  });
-}
-
-async function transformHtml(content, plugins){
-  const newContent = await posthtml(...plugins).process(content);
-  return newContent.html;
-}
-
-function transformHtmlSync(content, plugins){
-  const newContent = posthtml(...plugins).process(content, {sync: true});
-  return newContent.html;
-}
-
-
-start();

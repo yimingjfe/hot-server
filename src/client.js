@@ -1,7 +1,8 @@
 /* eslint-disable */
 if(WebSocket) {
   ;(function(){
-    var socket = new WebSocket('ws://localhost:7782');
+
+    var socket = new WebSocket(`ws://localhost:${location.port}`);
     var RELOAD_ORD = 'reload';
     
     console.log('hot reload client is ready');

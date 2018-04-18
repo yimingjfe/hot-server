@@ -15,11 +15,11 @@ describe('command line usage', () => {
       done();
     });
   });
-  
+
   it('--help', (done) => {
     execTest(['--help'], (error, stdout, stderr) => {
       assert(!error, error);
-      assert(stdout.includes('选项'), 'usage not found');
+      assert(stdout.includes('--help'), 'usage not found');
       done();
     })
   })
