@@ -23,11 +23,12 @@
       "type": "node",
       "request": "launch",
       "name": "Launch Program",
-      "program": "${workspaceFolder}/src/hot.js",
+      "program": "${workspaceFolder}/src/hot2.js",
       "args": [
         "-d",
         // "/Users/ming/Desktop/reactAround/react-tepl2/build",
-        "/Users/ming/Desktop/reactAround/draft-js",
+        // "/Users/ming/Desktop/reactAround/draft-js",
+        "/Users/ming/Desktop/jsAround/demo",
         // "-o",
         // "-b",
         // "chrome"
