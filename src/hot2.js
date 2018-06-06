@@ -2,9 +2,7 @@
 const path = require('path');
 const http = require('http');
 const opn = require('opn');
-const posthtml = require('posthtml');
 const parseurl = require('parseurl');
-// const send = require('send');
 const send = require('koa-send');
 const WebSocket = require('ws');
 const fs = require('./fs');
@@ -14,6 +12,7 @@ const chokidar = require('chokidar');
 const Koa = require('koa');
 const app = new Koa();
 const serveIndex = require('koa2-serve-index');
+const { Transform } = require('stream');
 
 const ISHTMLASSET = /\.html$/;
 const htmlExtensions = ['.html'];
@@ -41,16 +40,21 @@ const argv = require('yargs')
   })
   .argv;
 
-function initOptions(){
+async function initOptions(){
   const dir = process.cwd();
   const assetPath = argv['dir'];
   const abAssetPath = getMainAssetPath(dir, assetPath);
+  const stat = await fs.stat(abAssetPath);
+  const isDirectory = stat.isDirectory();
+  // const dirname = path.dirname(abAssetPath);
+  const dirname = isDirectory ? abAssetPath : path.dirname(abAssetPath);
   return {
-    dir: path.dirname(abAssetPath),
+    dir: dirname,
     port: argv.port,
     browser: argv.browser,
     open: argv.open,
-    assetPath: abAssetPath
+    assetPath: abAssetPath,
+    isDirectory: isDirectory
   };
 }
 
@@ -64,33 +68,46 @@ function serve(options){
       await send(ctx, '/client.js', {root: __dirname});
     } else {
       await send(ctx, pathname, {root: options.dir});
-      let injected = false;
-      const res = ctx.res;
-      const originalWrite = res.write;
-      // 文件比较大的时候改chunk，可能有问题
-      res.write = (chunk, encoding, callback) => {
-        if(ctx.response.is('html')){
-          if(!injected){
-            const content = chunk.toString();
+      const injectTransform = new Transform({
+        transform(chunk, encoding, callback) {
+          const content = chunk.toString();
+          if(/<\/body>/.test(content)){
             chunk = content.replace('</body>', `${injectedTag}$&`);
-            injected = true;
-            ctx.response.set('content-length', Number(ctx.response.get('content-length')) + chunk.length - content.length);
           }
+          this.push(chunk);
+          callback();
         }
-        originalWrite.call(res, chunk, encoding, callback);
-      };
+      });
+      ctx.body = ctx.body
+        .pipe(injectTransform);
     }
   };
+}
+
+async function timelogger(ctx, next){
+  console.time('timelogger');
+  await next();
+  console.timeEnd('timelogger');
 }
 
 async function startServer(options){
   try {
     const basename = path.basename(options.assetPath);
-    app.use(serveIndex(options.dir));
-    // app.use(async(ctx) => {
-    //   await send(ctx, ctx.path, { root: options.dir });
-    // });
+    app.use(async(ctx, next) =>{
+      await next();
+      console.log('status', ctx.status);
+      if(ctx.status === 404){
+        ctx.body = '404';
+      }
+    });
 
+    app.use(serveIndex(options.dir));
+
+    // app.use(async(ctx, next) => {
+    //   await serve(options);
+    //   await next();
+    // });
+    app.use(timelogger);
     app.use(serve(options));
   
     const port = await getPort(options.port);
@@ -157,11 +174,10 @@ function startWSServer(server, options){
   const sendReload = throttle(() => {
     wss.clients.forEach( ws => {
       ws.send('reload');  
-    });
+    }); 
   }, 500);
-  console.log('dir', options.dir);
-  chokidar.watch(options.dir, { recursive: true }, function onWatchDir(eventType, filename){
-    console.log('sendReload', eventType, filename);
+
+  chokidar.watch(options.dir).on('change', (event, path) => {
     sendReload();
   });
 
@@ -171,7 +187,7 @@ function startWSServer(server, options){
 }
 
 async function start(){
-  const options = initOptions();
+  const options = await initOptions();
   const server = await startServer(options);
   startWSServer(server, options);
 }
